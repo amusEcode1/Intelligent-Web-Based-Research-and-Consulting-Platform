@@ -9,7 +9,7 @@ st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
 # Securely set up your API Key (In production, use st.secrets)
 API_KEY = "AIzaSyCl9M4aMlB8YC9TNoJQgExQ0_ewR11btik" 
 genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # HELPER FUNCTIONS
 def extract_pdf_text(pdf_file):
