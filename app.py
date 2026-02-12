@@ -1,107 +1,87 @@
-!pip install sentence-transformers -q
-
-!pip install pdfplumber python-docx -q
-
-!pip install streamlit -q
-
 import streamlit as st
+import google.generativeai as genai
+from PyPDF2 import PdfReader
 import pandas as pd
-import numpy as np
-import docx
-import pdfplumber
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import spacy
 
-from google.colab import drive
-drive.mount('/content/drive')
+# CONFIGURATION
+st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
 
-# Load Model and Data
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("/content/drive/MyDrive/Models/Resume_Screening/sentence_model")
+# Securely set up your API Key (In production, use st.secrets)
+API_KEY = "AIzaSyCl9M4aMlB8YC9TNoJQgExQ0_ewR11btik" 
+genai.configure(api_key=API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-@st.cache_data
-def load_data():
-    resume_df = pd.read_csv("/content/drive/MyDrive/Models/Resume_Screening/resume_data.csv")
-    job_df = pd.read_csv("/content/drive/MyDrive/Models/Resume_Screening/job_data.csv")
-    resume_embeddings = np.load("/content/drive/MyDrive/Models/Resume_Screening/resume_embeddings.npy")
-    job_embeddings = np.load("/content/drive/MyDrive/Models/Resume_Screening/job_embeddings.npy")
-    return resume_df, job_df, resume_embeddings, job_embeddings
-
-model = load_model()
-resume_df, job_df, resume_embeddings, job_embeddings = load_data()
-
-nlp = spacy.load("en_core_web_sm")
-
-SKILLS = ["python", "java", "sql", "excel", "tableau", "power bi",
-          "machine learning", "nlp", "deep learning", "data analysis",
-          "tensorflow", "pytorch", "communication", "leadership", "statistics"]
-
-def extract_resume_text(uploaded_file):
-    if uploaded_file.type == "application/pdf":
-        with pdfplumber.open(uploaded_file) as pdf:
-            text = "\n".join([page.extract_text() for page in pdf.pages])
-    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        doc = docx.Document(uploaded_file)
-        text = "\n".join([para.text for para in doc.paragraphs])
-    else:
-        text = str(uploaded_file.read(), 'utf-8')
+# HELPER FUNCTIONS
+def extract_pdf_text(pdf_file):
+    reader = PdfReader(pdf_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
     return text
 
-def extract_skills(text):
-    text_lower = text.lower()
-    return [skill for skill in SKILLS if skill in text_lower]
+# SIDEBAR NAVIGATION
+st.sidebar.title("🌟 Platform Menu")
+app_mode = st.sidebar.selectbox("Choose a Module", ["Home", "AI Research Assistant", "Consulting Chatbot", "Data Analytics"])
 
-def extract_experience(text):
-    doc = nlp(text)
-    exp_sentences = []
-    for sent in doc.sents:
-        if any(word in sent.text.lower() for word in ["year", "experience", "worked", "internship", "project"]):
-            exp_sentences.append(sent.text)
-    return exp_sentences
+# MODULE 1: HOME
+if app_mode == "Home":
+    st.title("🎓 Intelligent Research & Consulting Platform")
+    st.write("Welcome! This platform uses AI to assist with academic research and professional consulting.")
+    st.image("https://via.placeholder.com/800x400.png?text=FUNAAB+Research+Hub")
+    
+# MODULE 2: AI RESEARCH ASSISTANT (PDF Analysis)
+elif app_mode == "AI Research Assistant":
+    st.header("📄 Research Paper Analyzer")
+    uploaded_file = st.file_uploader("Upload a Research PDF (e.g., a past project)", type="pdf")
+    
+    if uploaded_file:
+        with st.spinner("Reading document..."):
+            context = extract_pdf_text(uploaded_file)
+            st.success("Document Loaded!")
+        
+        user_question = st.text_input("What would you like to know about this research?")
+        
+        if user_question:
+            prompt = f"Based on this research text: {context[:5000]}, answer this: {user_question}"
+            response = model.generate_content(prompt)
+            st.markdown("### 🤖 AI Insight:")
+            st.write(response.text)
 
-def match_resume_to_jobs(resume_text, top_k=3):
-    resume_vec = model.encode([resume_text])
-    similarities = cosine_similarity(resume_vec, job_embeddings)[0]
-    job_df["match_score"] = similarities
-    top_jobs = job_df.sort_values(by="match_score", ascending=False).head(top_k)
-    return top_jobs
+# MODULE 3: CONSULTING CHATBOT
+elif app_mode == "Consulting Chatbot":
+    st.header("💬 Virtual Academic & Technical Consultant")
+    st.info("Ask me for advice on project methodologies, agricultural tips, or career guidance.")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-# Streamlit UI
-st.set_page_config(page_title="Resume Screening App", layout="wide")
-st.title("📄 Resume Screening & Matching System")
-st.write("Upload your resume to get automatically matched with the most suitable job descriptions.")
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-uploaded_resume = st.file_uploader("📤 Upload Resume (.pdf, .docx, .txt)", type=["pdf", "docx", "txt"])
+    if prompt := st.chat_input("How can I help you today?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-if uploaded_resume:
-    with st.spinner("Analyzing your resume..."):
-        resume_text = extract_resume_text(uploaded_resume)
-        skills = extract_skills(resume_text)
-        experience = extract_experience(resume_text)
+        with st.chat_message("assistant"):
+            # Consulting System Prompt
+            full_prompt = f"You are a professional research consultant. Provide expert advice on: {prompt}"
+            response = model.generate_content(full_prompt)
+            st.markdown(response.text)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
 
-        st.subheader("🧠 Extracted Information")
-        st.write(f"**Detected Skills:** {', '.join(skills) if skills else 'No skills detected'}")
-        st.write("**Experience Mentions:**")
-        for sent in experience[:3]:
-            st.write(f"- {sent}")
-
-        st.subheader("🔍 Matching Results")
-        top_jobs = match_resume_to_jobs(resume_text, top_k=3)
-
-        for _, row in top_jobs.iterrows():
-            st.markdown(f"""
-            **🎯 Job Title:** {row['Job Title']}
-            **🏢 Company:** {row['Company']}
-            **📊 Match Score:** {round(row['match_score']*100, 2)}%
-            **🧩 Required Skills:** {row['skills']}
-            ---
-            """)
-
-else:
-    st.info("Please upload a resume to start screening.")
-
-!jupyter nbconvert --to script "/content/drive/MyDrive/Colab Notebooks/Resume_Screening_app/app.ipynb"
-
-!mv "/content/drive/MyDrive/Colab Notebooks/Resume_Screening_app/app.txt" "/content/drive/MyDrive/Colab Notebooks/Text_Summarization_app/app.py"
+# MODULE 4: DATA ANALYTICS
+elif app_mode == "Data Analytics":
+    st.header("📊 Automated Research Data Analysis")
+    data_file = st.file_uploader("Upload your experimental data (CSV)", type="csv")
+    
+    if data_file:
+        df = pd.read_csv(data_file)
+        st.write("### Data Preview", df.head())
+        
+        column_to_plot = st.selectbox("Select a column to visualize", df.columns)
+        st.line_chart(df[column_to_plot])
+        
+        if st.button("Generate Statistical Summary"):
+            st.write(df.describe())
