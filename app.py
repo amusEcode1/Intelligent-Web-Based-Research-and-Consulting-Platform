@@ -27,7 +27,6 @@ app_mode = st.sidebar.selectbox("Choose a Module", ["Home", "AI Research Assista
 if app_mode == "Home":
     st.title("🎓 Intelligent Research & Consulting Platform")
     st.write("Welcome! This platform uses AI to assist with academic research and professional consulting.")
-    st.image("https://via.placeholder.com/800x400.png?text=FUNAAB+Research+Hub")
     
 # MODULE 2: AI RESEARCH ASSISTANT (PDF Analysis)
 elif app_mode == "AI Research Assistant":
