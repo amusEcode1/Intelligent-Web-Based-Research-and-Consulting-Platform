@@ -2,7 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 from PyPDF2 import PdfReader
 import pandas as pd
-import time  # New: for waiting between retries
+import time
+from google.api_core import exceptions
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
@@ -11,34 +12,43 @@ st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
 API_KEY = "AIzaSyCl9M4aMlB8YC9TNoJQgExQ0_ewR11btik" 
 genai.configure(api_key=API_KEY)
 
-# Use 'gemini-1.5-flash' for higher free-tier limits
+# Use 'gemini-1.5-flash' - it has the most generous free limits in 2026
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- HELPER FUNCTIONS ---
 def extract_pdf_text(pdf_file):
-    reader = PdfReader(pdf_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
+    try:
+        reader = PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            content = page.extract_text()
+            if content:
+                text += content
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {e}"
 
 def safe_generate_content(prompt):
-    """Function to handle 'Resource Exhausted' error with retries"""
-    max_retries = 3
+    """
+    Fixed Retry Logic: Uses exponential backoff to stop '429 Resource Exhausted' errors.
+    """
+    max_retries = 4
     for i in range(max_retries):
         try:
+            # Mandatory 2-second pause to prevent 'Burst' limit errors
+            time.sleep(2) 
             response = model.generate_content(prompt)
             return response.text
-        except Exception as e:
-            if "429" in str(e): # This is the Resource Exhausted error
-                if i < max_retries - 1:
-                    wait_time = (i + 1) * 5
-                    st.warning(f"Server busy. Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    return "❌ Error: API Quota exhausted. Please wait 1 minute and try again."
+        except exceptions.ResourceExhausted:
+            if i < max_retries - 1:
+                # Wait progressively longer: 10s, 20s, 40s
+                wait_time = (i + 1) * 10 
+                st.warning(f"⚠️ Google Servers busy. Waiting {wait_time}s before retrying...")
+                time.sleep(wait_time)
             else:
-                return f"❌ An unexpected error occurred: {str(e)}"
+                return "❌ API Quota fully exhausted. Please wait 2 minutes and refresh the page."
+        except Exception as e:
+            return f"❌ AI Error: {str(e)}"
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title("🌟 Platform Menu")
@@ -48,8 +58,8 @@ app_mode = st.sidebar.selectbox("Choose a Module", ["Home", "AI Research Assista
 if app_mode == "Home":
     st.title("🎓 Intelligent Research & Consulting Platform")
     st.write("Welcome! This platform uses AI to assist with academic research and professional consulting.")
-    
-# MODULE 2: AI RESEARCH ASSISTANT (PDF Analysis)
+
+# MODULE 2: AI RESEARCH ASSISTANT
 elif app_mode == "AI Research Assistant":
     st.header("📄 Research Paper Analyzer")
     uploaded_file = st.file_uploader("Upload a Research PDF", type="pdf")
@@ -62,8 +72,9 @@ elif app_mode == "AI Research Assistant":
         user_question = st.text_input("What would you like to know about this research?")
         
         if user_question:
-            with st.spinner("Analyzing..."):
-                prompt = f"Based on this research: {context[:5000]}, answer this: {user_question}"
+            with st.spinner("Analyzing (this may take a moment)..."):
+                # TRUNCATION: We only send the first 4000 characters to stay under the TPM limit
+                prompt = f"Using this research context: {context[:4000]}\n\nQuestion: {user_question}"
                 answer = safe_generate_content(prompt)
                 st.markdown("### 🤖 AI Insight:")
                 st.write(answer)
@@ -86,7 +97,7 @@ elif app_mode == "Consulting Chatbot":
 
         with st.chat_message("assistant"):
             with st.spinner("Consulting..."):
-                full_prompt = f"You are a professional research consultant. Answer: {prompt}"
+                full_prompt = f"System: You are an expert academic consultant. User asks: {prompt}"
                 answer = safe_generate_content(full_prompt)
                 st.markdown(answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
