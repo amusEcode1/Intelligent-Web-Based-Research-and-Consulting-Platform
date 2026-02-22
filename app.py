@@ -9,7 +9,7 @@ from google.api_core import exceptions
 st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
 
 # Securely set up your API Key
-API_KEY = "AIzaSyCl9M4aMlB8YC9TNoJQgExQ0_ewR11btik" 
+API_KEY = "AIzaSyACjodqLxCbN0SaZO5VI9eKC2kkb9gbNB4" 
 genai.configure(api_key=API_KEY)
 
 # Use 'gemini-1.5-flash' - it has the most generous free limits in 2026
