@@ -13,7 +13,7 @@ API_KEY = "AIzaSyCl9M4aMlB8YC9TNoJQgExQ0_ewR11btik"
 genai.configure(api_key=API_KEY)
 
 # Use 'gemini-1.5-flash' - it has the most generous free limits in 2026
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # --- HELPER FUNCTIONS ---
 def extract_pdf_text(pdf_file):
