@@ -1,0 +1,11 @@
+# Ignore Streamlit's local secrets
+.streamlit/
+
+# Ignore Python environment files
+venv/
+__pycache__/
+.env
+
+# Ignore OS metadata
+.DS_Store
+Thumbs.db
