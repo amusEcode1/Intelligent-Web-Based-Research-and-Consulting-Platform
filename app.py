@@ -9,8 +9,11 @@ from google.api_core import exceptions
 st.set_page_config(page_title="Intelligent Research Hub", layout="wide")
 
 # Securely set up your API Key
-API_KEY = "AIzaSyACjodqLxCbN0SaZO5VI9eKC2kkb9gbNB4" 
-genai.configure(api_key=API_KEY)
+if "GEMINI_API_KEY" in st.secrets:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=API_KEY)
+else:
+    st.error("API Key not found! Please set it in secrets.toml or Streamlit Cloud.")
 
 # Use 'gemini-1.5-flash' - it has the most generous free limits in 2026
 model = genai.GenerativeModel('gemini-2.5-flash-lite')
